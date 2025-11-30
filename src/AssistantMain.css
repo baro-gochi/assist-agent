@@ -511,9 +511,48 @@
   margin-bottom: 16px;
 }
 
+.summary-content {
+  margin-top: 8px;
+}
+
 .summary-text {
   font-size: 17px;
   line-height: 1.8;
+  color: var(--text-primary);
+  font-weight: 500;
+  margin: 0;
+}
+
+.summary-text.error {
+  color: var(--danger);
+}
+
+/* JSON 요약 스타일 */
+.summary-json {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.summary-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  background: var(--card-light);
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+}
+
+.summary-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.summary-value {
+  font-size: 16px;
+  line-height: 1.7;
   color: var(--text-primary);
   font-weight: 500;
 }
