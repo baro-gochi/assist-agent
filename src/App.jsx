@@ -197,8 +197,7 @@ function App() {
             height: '100vh',
             fontFamily: 'sans-serif'
           }}>
-            <h1>404 - Page Not Found</h1>
-            <p>요청하신 페이지를 찾을 수 없습니다.</p>
+            <h1>실시간 상담 어시스턴트 에이전트</h1>
             <div style={{ marginTop: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
               <Link to="/" style={{
                 padding: '10px 20px',

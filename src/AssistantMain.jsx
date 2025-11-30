@@ -272,6 +272,10 @@ function AssistantMain() {
     setError(''); // 이전 에러 초기화
     try {
       const headers = {};
+      const authToken = sessionStorage.getItem('auth_token');
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
 
       const response = await fetch(apiUrl, { headers });
       console.log('📡 Response status:', response.status);
