@@ -263,19 +263,15 @@ function AssistantMain() {
    * 방 목록 가져오기 (고객용)
    */
   const fetchRooms = async () => {
-    // 백엔드 URL 결정: localtunnel 사용 시 환경변수, 아니면 상대 경로
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
-    const apiUrl = backendUrl ? `${backendUrl}/api/rooms` : '/api/rooms';
+    // 환경변수 우선, 없으면 현재 호스트 사용
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    const apiUrl = `${apiBase}/api/rooms`;
 
     console.log('🔄 Fetching rooms from:', apiUrl);
     setLoadingRooms(true);
     setError(''); // 이전 에러 초기화
     try {
-      // localtunnel bypass 헤더 추가
       const headers = {};
-      if (backendUrl && backendUrl.includes('loca.lt')) {
-        headers['Bypass-Tunnel-Reminder'] = 'go';
-      }
 
       const response = await fetch(apiUrl, { headers });
       console.log('📡 Response status:', response.status);
