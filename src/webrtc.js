@@ -469,23 +469,20 @@ export class WebRTCClient {
    */
   async getLocalMedia() {
     try {
-      console.log('🎥 Requesting camera/microphone permissions...');
+      console.log('🎤 Requesting microphone permissions...');
       console.log('🔒 Current protocol:', window.location.protocol);
       console.log('🔒 Is secure context:', window.isSecureContext);
 
+      // 오디오만 요청 (비디오 없음)
       this.localStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
+        video: false,
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true
         }
       });
-      console.log('✅ Local media stream obtained');
-      console.log('📹 Video tracks:', this.localStream.getVideoTracks().length);
+      console.log('✅ Local audio stream obtained');
       console.log('🎤 Audio tracks:', this.localStream.getAudioTracks().length);
       return this.localStream;
     } catch (error) {
@@ -494,15 +491,15 @@ export class WebRTCClient {
       console.error('❌ Error message:', error.message);
 
       // Show user-friendly error
-      let userMessage = 'Failed to access camera/microphone: ';
+      let userMessage = '마이크 접근 실패: ';
       if (error.name === 'NotAllowedError') {
-        userMessage += 'Permission denied. Please allow camera and microphone access.';
+        userMessage += '권한이 거부되었습니다. 마이크 접근을 허용해주세요.';
       } else if (error.name === 'NotFoundError') {
-        userMessage += 'No camera or microphone found on this device.';
+        userMessage += '마이크를 찾을 수 없습니다.';
       } else if (error.name === 'NotReadableError') {
-        userMessage += 'Camera/microphone is already in use by another application.';
+        userMessage += '마이크가 다른 앱에서 사용 중입니다.';
       } else if (error.name === 'NotSecureError' || !window.isSecureContext) {
-        userMessage += 'Camera/microphone requires HTTPS. Please use https:// URL.';
+        userMessage += 'HTTPS 연결이 필요합니다.';
       } else {
         userMessage += error.message;
       }
@@ -598,15 +595,14 @@ export class WebRTCClient {
       console.log('🎥 Track added to remoteStream:', track.kind, track.id);
 
       const currentTracks = this.remoteStream.getTracks();
-      console.log('🎥 Remote stream now has tracks:',
+      console.log('🎤 Remote stream now has tracks:',
         currentTracks.map(t => `${t.kind}:${t.id}:${t.readyState}`));
 
-      // onRemoteStream 콜백은 오디오+비디오 둘 다 있을 때만 호출
+      // 오디오 트랙이 있으면 콜백 호출
       const hasAudio = currentTracks.some(t => t.kind === 'audio');
-      const hasVideo = currentTracks.some(t => t.kind === 'video');
 
-      if (hasAudio && hasVideo && this.onRemoteStream) {
-        console.log('🎥 Both audio and video tracks received, calling onRemoteStream callback');
+      if (hasAudio && this.onRemoteStream) {
+        console.log('🎤 Audio track received, calling onRemoteStream callback');
         this.onRemoteStream(this.remoteStream);
       }
     };
@@ -1100,26 +1096,6 @@ export class WebRTCClient {
   }
 
   /**
-   * 비디오 트랙을 토글합니다 (카메라 켜기/끄기)
-   *
-   * @returns {boolean} 비디오 활성화 상태 (true: 켜짐, false: 꺼짐)
-   */
-  toggleVideo() {
-    if (this.localStream) {
-      const videoTracks = this.localStream.getVideoTracks();
-      if (videoTracks.length > 0) {
-        const enabled = !videoTracks[0].enabled;
-        videoTracks.forEach(track => {
-          track.enabled = enabled;
-        });
-        console.log(`📹 Video ${enabled ? 'enabled' : 'disabled'}`);
-        return enabled;
-      }
-    }
-    return false;
-  }
-
-  /**
    * 현재 오디오 활성화 상태를 반환합니다
    *
    * @returns {boolean} true: 오디오 켜짐, false: 오디오 꺼짐
@@ -1128,19 +1104,6 @@ export class WebRTCClient {
     if (this.localStream) {
       const audioTracks = this.localStream.getAudioTracks();
       return audioTracks.length > 0 && audioTracks[0].enabled;
-    }
-    return false;
-  }
-
-  /**
-   * 현재 비디오 활성화 상태를 반환합니다
-   *
-   * @returns {boolean} true: 비디오 켜짐, false: 비디오 꺼짐
-   */
-  isVideoEnabled() {
-    if (this.localStream) {
-      const videoTracks = this.localStream.getVideoTracks();
-      return videoTracks.length > 0 && videoTracks[0].enabled;
     }
     return false;
   }

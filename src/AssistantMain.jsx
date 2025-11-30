@@ -53,18 +53,16 @@ function AssistantMain() {
   const [llmStatus, setLlmStatus] = useState('connecting'); // 'connecting' | 'ready' | 'connected' | 'failed'
   const [isStreaming, setIsStreaming] = useState(false); // 스트리밍 중 여부
 
-  // 비디오 refs
-  const localVideoRef = useRef(null);
-  const remoteVideoRef = useRef(null);
+  // WebRTC ref
   const webrtcClientRef = useRef(null);
+  const remoteAudioRef = useRef(null);
 
   // 폼 입력값
   const [roomInput, setRoomInput] = useState('');
   const [nicknameInput, setNicknameInput] = useState('');
 
-  // 오디오/비디오 상태
+  // 오디오 상태
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
-  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
 
   /**
    * WebRTC 클라이언트 초기화
@@ -110,10 +108,10 @@ function AssistantMain() {
     };
 
     client.onRemoteStream = (stream) => {
-      console.log('📺 Remote stream received');
-      if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== stream) {
-        remoteVideoRef.current.srcObject = stream;
-        remoteVideoRef.current.play().catch(err => console.error('Remote video play failed:', err));
+      console.log('🎤 Remote audio stream received');
+      if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== stream) {
+        remoteAudioRef.current.srcObject = stream;
+        remoteAudioRef.current.play().catch(err => console.error('Remote audio play failed:', err));
       }
     };
 
@@ -349,11 +347,6 @@ function AssistantMain() {
     try {
       setError('');
       await webrtcClientRef.current.startCall();
-
-      if (localVideoRef.current && webrtcClientRef.current.localStream) {
-        localVideoRef.current.srcObject = webrtcClientRef.current.localStream;
-      }
-
       setCallStartTime(Date.now()); // 통화 시작 시간 기록
       setIsCallActive(true);
     } catch (err) {
@@ -369,8 +362,7 @@ function AssistantMain() {
   const handleLeaveRoom = () => {
     webrtcClientRef.current.leaveRoom();
 
-    if (localVideoRef.current) localVideoRef.current.srcObject = null;
-    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
 
     setIsInRoom(false);
     setIsCallActive(false);
@@ -390,16 +382,11 @@ function AssistantMain() {
   };
 
   /**
-   * 오디오/비디오 토글
+   * 오디오 토글
    */
   const handleToggleAudio = () => {
     const enabled = webrtcClientRef.current.toggleAudio();
     setIsAudioEnabled(enabled);
-  };
-
-  const handleToggleVideo = () => {
-    const enabled = webrtcClientRef.current.toggleVideo();
-    setIsVideoEnabled(enabled);
   };
 
   /**
@@ -634,13 +621,6 @@ function AssistantMain() {
                     >
                       {isAudioEnabled ? '🎤' : '🔇'}
                     </button>
-                    <button
-                      onClick={handleToggleVideo}
-                      className={`btn btn-sm ${isVideoEnabled ? 'btn-primary' : 'btn-secondary'}`}
-                      title={isVideoEnabled ? '비디오 끄기' : '비디오 켜기'}
-                    >
-                      {isVideoEnabled ? '📹' : '📷'}
-                    </button>
                   </div>
                   <button onClick={handleLeaveRoom} className="btn btn-danger btn-block mt-2">
                     통화 종료
@@ -764,11 +744,8 @@ function AssistantMain() {
         )}
       </main>
 
-      {/* Hidden Video Elements */}
-      <div className="hidden-videos">
-        <video ref={localVideoRef} autoPlay playsInline muted />
-        <video ref={remoteVideoRef} autoPlay playsInline />
-      </div>
+      {/* Hidden Audio Element for Remote Stream */}
+      <audio ref={remoteAudioRef} autoPlay />
     </div>
   );
 }

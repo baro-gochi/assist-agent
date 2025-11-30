@@ -7,14 +7,12 @@
  *
  * 라우트:
  * - / : AssistantMain (AI 상담 어시스턴트 대시보드)
- * - /video-call : VideoCall (기능 프로토타입 - 기존 비디오 통화 UI)
  * - /stt-compare : STTComparison (Google STT vs ElevenLabs STT 비교)
  */
 
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import AssistantMain from './AssistantMain';
-import VideoCall from './VideoCall';
 import STTComparison from './STTComparison';
 import './App.css';
 
@@ -64,7 +62,7 @@ function PasswordScreen({ onAuthenticated }) {
       justifyContent: 'center',
       height: '100vh',
       fontFamily: 'sans-serif',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: 'linear-gradient(135deg, #6B8E7D 0%, #5A7A6A 100%)',
     }}>
       <div style={{
         background: 'white',
@@ -86,6 +84,7 @@ function PasswordScreen({ onAuthenticated }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="비밀번호 입력"
+            autoComplete="new-password"
             style={{
               width: '100%',
               padding: '12px 16px',
@@ -109,7 +108,7 @@ function PasswordScreen({ onAuthenticated }) {
               width: '100%',
               padding: '12px',
               fontSize: '16px',
-              background: loading ? '#ccc' : '#4F46E5',
+              background: loading ? '#ccc' : '#6B8E7D',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
@@ -181,9 +180,6 @@ function App() {
         {/* Main Route: AI Assistant Dashboard */}
         <Route path="/" element={<AssistantMain />} />
 
-        {/* Legacy Route: Original Video Call Prototype */}
-        <Route path="/video-call" element={<VideoCall />} />
-
         {/* STT Comparison Route: Google vs ElevenLabs */}
         <Route path="/stt-compare" element={<STTComparison />} />
 
@@ -201,25 +197,16 @@ function App() {
             <div style={{ marginTop: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
               <Link to="/" style={{
                 padding: '10px 20px',
-                background: '#4F46E5',
+                background: '#6B8E7D',
                 color: 'white',
                 textDecoration: 'none',
                 borderRadius: '5px'
               }}>
                 AI 어시스턴트 대시보드
               </Link>
-              <Link to="/video-call" style={{
-                padding: '10px 20px',
-                background: '#6B7280',
-                color: 'white',
-                textDecoration: 'none',
-                borderRadius: '5px'
-              }}>
-                비디오 콜 (프로토타입)
-              </Link>
               <Link to="/stt-compare" style={{
                 padding: '10px 20px',
-                background: '#10B981',
+                background: '#6B9E7D',
                 color: 'white',
                 textDecoration: 'none',
                 borderRadius: '5px'
