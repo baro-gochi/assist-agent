@@ -7,13 +7,11 @@
  *
  * 라우트:
  * - / : AssistantMain (AI 상담 어시스턴트 대시보드)
- * - /stt-compare : STTComparison (Google STT vs ElevenLabs STT 비교)
  */
 
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AssistantMain from './AssistantMain';
-import STTComparison from './STTComparison';
 import './App.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -180,42 +178,8 @@ function App() {
         {/* Main Route: AI Assistant Dashboard */}
         <Route path="/" element={<AssistantMain />} />
 
-        {/* STT Comparison Route: Google vs ElevenLabs */}
-        <Route path="/stt-compare" element={<STTComparison />} />
-
-        {/* 404 Not Found */}
-        <Route path="*" element={
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100vh',
-            fontFamily: 'sans-serif'
-          }}>
-            <h1>실시간 상담 어시스턴트 에이전트</h1>
-            <div style={{ marginTop: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
-              <Link to="/" style={{
-                padding: '10px 20px',
-                background: '#6B8E7D',
-                color: 'white',
-                textDecoration: 'none',
-                borderRadius: '5px'
-              }}>
-                AI 어시스턴트 대시보드
-              </Link>
-              <Link to="/stt-compare" style={{
-                padding: '10px 20px',
-                background: '#6B9E7D',
-                color: 'white',
-                textDecoration: 'none',
-                borderRadius: '5px'
-              }}>
-                STT 엔진 비교
-              </Link>
-            </div>
-          </div>
-        } />
+        {/* Redirect all other routes to main */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

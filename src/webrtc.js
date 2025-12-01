@@ -1,26 +1,26 @@
 /**
- * @fileoverview WebRTC 클라이언트 - 룸 기반 화상 통화 시스템
+ * @fileoverview WebRTC 클라이언트 - 룸 기반 음성 통화 시스템
  *
  * @description
- * 이 파일은 WebRTC를 사용한 실시간 화상/음성 통화 기능을 제공합니다.
- * 서버의 시그널링 서버와 통신하여 피어 간 연결을 설정하고 미디어를 주고받습니다.
+ * 이 파일은 WebRTC를 사용한 실시간 음성 통화 기능을 제공합니다.
+ * 서버의 시그널링 서버와 통신하여 피어 간 연결을 설정하고 오디오를 주고받습니다.
  *
  * 주요 개념 (초보자 필독):
- * - WebRTC: 웹 브라우저 간 실시간 통신 기술 (카메라, 마이크, 화면 공유 등)
+ * - WebRTC: 웹 브라우저 간 실시간 통신 기술 (마이크, 오디오 스트리밍 등)
  * - WebSocket: 서버와 실시간 양방향 통신을 위한 기술
  * - 시그널링: WebRTC 연결을 설정하기 위한 초기 정보 교환 과정
  * - SDP (Session Description Protocol): 연결 정보를 담은 데이터 형식
  * - ICE Candidate: 네트워크 경로 정보
- * - MediaStream: 카메라/마이크에서 오는 오디오/비디오 데이터 흐름
+ * - MediaStream: 마이크에서 오는 오디오 데이터 흐름
  *
  * 연결 과정 (순서대로):
  * 1. WebSocket으로 시그널링 서버에 연결
  * 2. 룸(방)에 참가
- * 3. 카메라/마이크 권한 요청 및 로컬 미디어 획득
+ * 3. 마이크 권한 요청 및 로컬 오디오 획득
  * 4. RTCPeerConnection 생성 및 offer 전송
  * 5. 서버로부터 answer 수신
  * 6. ICE candidate 교환
- * 7. 미디어 스트림 송수신 시작
+ * 7. 오디오 스트림 송수신 시작
  *
  * @see {@link https://developer.mozilla.org/ko/docs/Web/API/WebRTC_API} WebRTC API 문서
  * @see {@link https://developer.mozilla.org/ko/docs/Web/API/WebSocket} WebSocket API 문서
@@ -31,7 +31,7 @@
  *
  * // 이벤트 핸들러 등록
  * client.onRemoteStream = (stream) => {
- *   videoElement.srcObject = stream;
+ *   audioElement.srcObject = stream;
  * };
  *
  * // 연결 및 통화 시작
@@ -45,8 +45,8 @@
  *
  * @class WebRTCClient
  * @description
- * 룸 기반 화상 통화를 위한 WebRTC 클라이언트입니다.
- * 시그널링 서버와 통신하여 다른 참가자들과 실시간으로 오디오/비디오를 주고받습니다.
+ * 룸 기반 음성 통화를 위한 WebRTC 클라이언트입니다.
+ * 시그널링 서버와 통신하여 다른 참가자들과 실시간으로 오디오를 주고받습니다.
  *
  * @tutorial
  * WebRTC 연결 과정 이해하기:
@@ -61,9 +61,9 @@
  *    - STUN 서버가 공인 IP를 찾아줌
  *    - 가능한 모든 연결 경로를 시도
  *
- * 3단계: 미디어 전송
- *    - P2P 연결이 완료되면 직접 미디어 전송
- *    - 서버는 더 이상 미디어 데이터를 중계하지 않음
+ * 3단계: 오디오 전송
+ *    - P2P 연결이 완료되면 직접 오디오 전송
+ *    - 서버는 더 이상 오디오 데이터를 중계하지 않음
  *    - 낮은 지연시간으로 실시간 통화 가능
  */
 export class WebRTCClient {
@@ -79,12 +79,12 @@ export class WebRTCClient {
    *
    * @property {string} signalingUrl - 시그널링 서버 주소
    * @property {WebSocket|null} ws - WebSocket 연결 객체 (서버와 통신)
-   * @property {RTCPeerConnection|null} pc - WebRTC 피어 연결 객체 (미디어 송수신)
+   * @property {RTCPeerConnection|null} pc - WebRTC 피어 연결 객체 (오디오 송수신)
    * @property {string|null} peerId - 서버가 할당한 고유 ID
    * @property {string|null} roomName - 현재 참가 중인 룸 이름
    * @property {string|null} nickname - 사용자 닉네임
-   * @property {MediaStream|null} localStream - 내 카메라/마이크 스트림
-   * @property {MediaStream} remoteStream - 상대방 카메라/마이크 스트림
+   * @property {MediaStream|null} localStream - 내 마이크 스트림
+   * @property {MediaStream} remoteStream - 상대방 마이크 스트림
    *
    * @property {Function|null} onPeerId - 피어 ID를 받았을 때 호출되는 콜백
    * @property {Function|null} onRoomJoined - 룸 참가 성공 시 호출되는 콜백
@@ -107,7 +107,7 @@ export class WebRTCClient {
    * const client = new WebRTCClient();
    * client.onPeerId = (id) => console.log('내 ID:', id);
    * client.onRemoteStream = (stream) => {
-   *   document.getElementById('remoteVideo').srcObject = stream;
+   *   document.getElementById('remoteAudio').srcObject = stream;
    * };
    */
   constructor(signalingUrl = 'ws://localhost:8000/ws', authToken = null) {
@@ -401,7 +401,7 @@ export class WebRTCClient {
    * @description
    * 지정된 이름의 룸에 참가 요청을 보냅니다.
    * 룸이 존재하지 않으면 자동으로 생성됩니다.
-   * 같은 룸에 있는 다른 참가자들과 화상 통화를 할 수 있게 됩니다.
+   * 같은 룸에 있는 다른 참가자들과 음성 통화를 할 수 있게 됩니다.
    *
    * @example
    * const client = new WebRTCClient();
@@ -433,19 +433,17 @@ export class WebRTCClient {
   }
 
   /**
-   * 로컬 미디어 스트림을 획득합니다 (카메라 + 마이크)
+   * 로컬 오디오 스트림을 획득합니다 (마이크)
    *
    * @async
-   * @returns {Promise<MediaStream>} 로컬 미디어 스트림
+   * @returns {Promise<MediaStream>} 로컬 오디오 스트림
    * @throws {Error} 미디어 접근 권한이 없거나 기기가 없으면 에러 발생
    *
    * @description
-   * 사용자의 카메라와 마이크에 접근하여 미디어 스트림을 가져옵니다.
+   * 사용자의 마이크에 접근하여 오디오 스트림을 가져옵니다.
    * 처음 실행 시 브라우저가 권한을 요청합니다.
    *
-   * 미디어 설정:
-   * - 비디오: 1280x720 해상도 (HD)
-   * - 오디오:
+   * 오디오 설정:
    *   - echoCancellation: 에코 제거 (내 소리가 다시 들리는 현상 방지)
    *   - noiseSuppression: 배경 소음 제거
    *   - autoGainControl: 음량 자동 조절
@@ -454,10 +452,10 @@ export class WebRTCClient {
    * const client = new WebRTCClient();
    * try {
    *   const stream = await client.getLocalMedia();
-   *   videoElement.srcObject = stream; // 비디오 요소에 연결
+   *   audioElement.srcObject = stream; // 오디오 요소에 연결
    * } catch (error) {
    *   if (error.name === 'NotAllowedError') {
-   *     alert('카메라/마이크 권한이 필요합니다');
+   *     alert('마이크 권한이 필요합니다');
    *   }
    * }
    *
@@ -465,7 +463,7 @@ export class WebRTCClient {
    * 주의사항:
    * - HTTPS 또는 localhost에서만 작동 (보안상의 이유)
    * - 사용자가 권한을 거부하면 에러 발생
-   * - 카메라/마이크가 다른 앱에서 사용 중이면 실패할 수 있음
+   * - 마이크가 다른 앱에서 사용 중이면 실패할 수 있음
    */
   async getLocalMedia() {
     try {
@@ -482,7 +480,7 @@ export class WebRTCClient {
           channelCount: 1,             // 모노 (대화용)
           // 음성 처리 설정 - 네트워크 환경에 따라 조정
           echoCancellation: true,      // 에코 제거
-          noiseSuppression: false,     // 노이즈 억제 끔 (로봇 소리 방지)
+          noiseSuppression: false,     // 노이즈 억제 끔
           autoGainControl: true,       // 자동 게인 조절
           // 지연 최소화
           latency: 0                   // 최소 지연
@@ -523,7 +521,7 @@ export class WebRTCClient {
    *
    * @description
    * WebRTC의 핵심인 RTCPeerConnection 객체를 생성합니다.
-   * 이 연결을 통해 실제 미디어(오디오/비디오)가 전송됩니다.
+   * 이 연결을 통해 실제 오디오가 전송됩니다.
    *
    * 주요 작업:
    * 1. RTCPeerConnection 생성 (STUN 서버 설정)
@@ -579,6 +577,9 @@ export class WebRTCClient {
         this.pc.addTrack(track, this.localStream);
         console.log('Added local track:', track.kind);
       });
+
+      // 오디오 비트레이트를 32kbps로 제한 (패킷 손실 방지)
+      await this.setAudioBitrate(32000);
     }
 
     // Handle remote tracks
@@ -880,17 +881,17 @@ export class WebRTCClient {
   }
 
   /**
-   * 통화를 시작합니다 (미디어 획득 + 피어 연결 생성)
+   * 통화를 시작합니다 (오디오 획득 + 피어 연결 생성)
    *
    * @async
-   * @throws {Error} 미디어 획득 또는 연결 생성 실패 시 에러 발생
+   * @throws {Error} 오디오 획득 또는 연결 생성 실패 시 에러 발생
    *
    * @description
-   * 화상 통화를 시작하기 위한 모든 과정을 순서대로 실행합니다.
+   * 음성 통화를 시작하기 위한 모든 과정을 순서대로 실행합니다.
    * 이 메서드 하나로 통화 준비를 완료할 수 있습니다.
    *
    * 실행 순서:
-   * 1. getLocalMedia(): 카메라/마이크 권한 요청 및 스트림 획득
+   * 1. getLocalMedia(): 마이크 권한 요청 및 스트림 획득
    * 2. createPeerConnection(): WebRTC 연결 생성 및 offer 전송
    *
    * @example
@@ -905,7 +906,7 @@ export class WebRTCClient {
    * 통화 시작 전 체크리스트:
    * 1. ✅ WebSocket 연결 완료 (connect)
    * 2. ✅ 룸 참가 완료 (joinRoom)
-   * 3. ✅ 카메라/마이크 권한 승인
+   * 3. ✅ 마이크 권한 승인
    * 4. ✅ 네트워크 연결 상태 양호
    */
   async startCall() {
@@ -950,23 +951,23 @@ export class WebRTCClient {
    * 통화를 중단하고 모든 리소스를 정리합니다
    *
    * @description
-   * 미디어 스트림과 WebRTC 연결을 모두 종료합니다.
+   * 오디오 스트림과 WebRTC 연결을 모두 종료합니다.
    * 메모리 누수를 방지하기 위해 모든 리소스를 해제합니다.
    *
    * 정리 항목:
-   * 1. 로컬 미디어 트랙 정지 (카메라/마이크 LED 꺼짐)
+   * 1. 로컬 오디오 트랙 정지 (마이크 LED 꺼짐)
    * 2. 로컬 스트림 객체 제거
    * 3. RTCPeerConnection 종료
    * 4. 원격 스트림 정리
    *
    * @example
    * client.stopCall();
-   * // 카메라가 꺼지고 통화가 완전히 종료됨
+   * // 마이크가 꺼지고 통화가 완전히 종료됨
    *
    * @tutorial
    * track.stop()이 중요한 이유:
-   * - 카메라/마이크의 활성 LED가 꺼짐
-   * - 다른 앱에서 카메라를 사용할 수 있게 됨
+   * - 마이크의 활성 LED가 꺼짐
+   * - 다른 앱에서 마이크를 사용할 수 있게 됨
    * - 시스템 리소스 절약
    * - 배터리 수명 향상
    */
@@ -1034,13 +1035,12 @@ export class WebRTCClient {
   }
 
   /**
-   * 로컬 미디어 스트림을 시작합니다 (마이크/카메라).
+   * 로컬 오디오 스트림을 시작합니다 (마이크).
    *
    * @async
    * @param {Object} constraints - MediaStream 제약 조건
    * @param {boolean} [constraints.audio=true] - 오디오 활성화 여부
-   * @param {boolean} [constraints.video=false] - 비디오 활성화 여부
-   * @returns {Promise<MediaStream>} 로컬 미디어 스트림
+   * @returns {Promise<MediaStream>} 로컬 오디오 스트림
    */
   async startLocalStream(constraints = { audio: true, video: false }) {
     try {
@@ -1112,5 +1112,55 @@ export class WebRTCClient {
       return audioTracks.length > 0 && audioTracks[0].enabled;
     }
     return false;
+  }
+
+  /**
+   * 오디오 비트레이트를 설정합니다
+   *
+   * @async
+   * @param {number} bitrate - 비트레이트 (bps 단위, 예: 32000 = 32kbps)
+   *
+   * @description
+   * RTCRtpSender의 setParameters()를 사용하여 오디오 비트레이트를 제한합니다.
+   * 낮은 비트레이트는 네트워크 대역폭을 줄여 패킷 손실을 방지할 수 있습니다.
+   *
+   * 권장 비트레이트:
+   * - 32kbps: 저대역폭 환경, 기본 음성 품질
+   * - 64kbps: 일반적인 음성 통화
+   * - 128kbps: 고품질 오디오
+   *
+   * @example
+   * await client.setAudioBitrate(32000); // 32kbps로 설정
+   */
+  async setAudioBitrate(bitrate) {
+    if (!this.pc) {
+      console.warn('⚠️ No peer connection, cannot set bitrate');
+      return;
+    }
+
+    const senders = this.pc.getSenders();
+    const audioSender = senders.find(sender => sender.track?.kind === 'audio');
+
+    if (!audioSender) {
+      console.warn('⚠️ No audio sender found');
+      return;
+    }
+
+    try {
+      const params = audioSender.getParameters();
+
+      // encodings 배열이 없으면 생성
+      if (!params.encodings || params.encodings.length === 0) {
+        params.encodings = [{}];
+      }
+
+      // 비트레이트 설정
+      params.encodings[0].maxBitrate = bitrate;
+
+      await audioSender.setParameters(params);
+      console.log(`✅ Audio bitrate set to ${bitrate / 1000}kbps`);
+    } catch (error) {
+      console.error('❌ Failed to set audio bitrate:', error);
+    }
   }
 }
