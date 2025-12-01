@@ -588,6 +588,13 @@ export class WebRTCClient {
       console.log('🎥 Track ID:', event.track.id);
       console.log('🎥 Track state:', event.track.readyState);
 
+      // 오디오 재생 지연 버퍼 설정 (패킷 손실/지터로 인한 끊김 방지)
+      // 0.3초 버퍼를 두어 로봇 소리 현상 완화
+      if (event.receiver && event.track.kind === 'audio') {
+        event.receiver.playoutDelayHint = 0.3;
+        console.log('🔊 Audio playout delay hint set to 0.3s');
+      }
+
       // Add only the received track (not all tracks from stream)
       const track = event.track;
 
