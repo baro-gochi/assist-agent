@@ -110,6 +110,9 @@ export class WebRTCClient {
    *   document.getElementById('remoteAudio').srcObject = stream;
    * };
    */
+
+  BITRATE=32000;
+
   constructor(signalingUrl = 'ws://localhost:8000/ws', authToken = null) {
     this.signalingUrl = signalingUrl;
     this.authToken = authToken || sessionStorage.getItem('auth_token');
@@ -475,12 +478,12 @@ export class WebRTCClient {
         video: false,
         audio: {
           // 오디오 품질 설정
-          sampleRate: 48000,           // 48kHz - 고품질 오디오
+          sampleRate: BITRATE,           // 32kHz - 고품질 오디오
           sampleSize: 16,              // 16비트
           channelCount: 1,             // 모노 (대화용)
           // 음성 처리 설정 - 네트워크 환경에 따라 조정
           echoCancellation: true,      // 에코 제거
-          noiseSuppression: false,     // 노이즈 억제 끔
+          noiseSuppression: true,     // 노이즈 억제
           autoGainControl: true,       // 자동 게인 조절
           // 지연 최소화
           latency: 0                   // 최소 지연
@@ -550,7 +553,7 @@ export class WebRTCClient {
   async createPeerConnection() {
     // Use prefetched TURN credentials from AWS coturn or fetch if not available
     let iceServers = [
-      // Google STUN server (backup)
+      // Google STUN server
       { urls: 'stun:stun.l.google.com:19302' }
     ];
 
@@ -565,11 +568,7 @@ export class WebRTCClient {
 
     // Create RTCPeerConnection with fetched ICE servers
     // Use all available connection methods (STUN + TURN)
-    // TURN will be preferred if available, but STUN is fallback
-    this.pc = new RTCPeerConnection({
-      iceServers
-      // iceTransportPolicy: 'all' (default) - allows both direct and relayed connections
-    });
+    this.pc = new RTCPeerConnection({iceServers});
 
     // Add local tracks to peer connection
     if (this.localStream) {
@@ -578,8 +577,8 @@ export class WebRTCClient {
         console.log('Added local track:', track.kind);
       });
 
-      // 오디오 비트레이트를 32kbps로 제한 (패킷 손실 방지)
-      await this.setAudioBitrate(32000);
+      // 오디오 비트레이트 설정
+      await this.setAudioBitrate(BITRATE);
     }
 
     // Handle remote tracks
@@ -589,10 +588,12 @@ export class WebRTCClient {
       console.log('🎥 Track state:', event.track.readyState);
 
       // 오디오 재생 지연 버퍼 설정 (패킷 손실/지터로 인한 끊김 방지)
-      // 0.3초 버퍼를 두어 로봇 소리 현상 완화
+      // playoutDelayHint: 0.3초 버퍼를 두어 로봇 소리 현상 완화
+      // jitterBufferTarget: 수신측 지터 버퍼 300ms 설정
       if (event.receiver && event.track.kind === 'audio') {
         event.receiver.playoutDelayHint = 0.3;
-        console.log('🔊 Audio playout delay hint set to 0.3s');
+        event.receiver.jitterBufferTarget = 300;
+        console.log('🔊 Audio playout delay hint set to 0.3s, jitter buffer target set to 300ms');
       }
 
       // Add only the received track (not all tracks from stream)
@@ -650,6 +651,11 @@ export class WebRTCClient {
 
     // Create and send offer
     const offer = await this.pc.createOffer();
+
+    // DTX(Discontinuous Transmission) 비활성화
+    // 침묵 구간에서도 패킷을 계속 전송하여 jitter buffer 안정화
+    offer.sdp = this.disableDTX(offer.sdp);
+
     await this.pc.setLocalDescription(offer);
 
     console.log('Sending offer to server');
@@ -872,6 +878,10 @@ export class WebRTCClient {
 
       // Create new offer
       const offer = await this.pc.createOffer();
+
+      // DTX 비활성화 적용
+      offer.sdp = this.disableDTX(offer.sdp);
+
       await this.pc.setLocalDescription(offer);
 
       // Send new offer to server
@@ -1169,5 +1179,44 @@ export class WebRTCClient {
     } catch (error) {
       console.error('❌ Failed to set audio bitrate:', error);
     }
+  }
+
+  /**
+   * SDP에서 Opus DTX(Discontinuous Transmission)를 비활성화합니다
+   *
+   * @param {string} sdp - 원본 SDP 문자열
+   * @returns {string} DTX가 비활성화된 SDP 문자열
+   *
+   * @description
+   * DTX가 활성화되면 침묵 구간에서 패킷 전송이 중단되어
+   * 수신측 jitter buffer가 불안정해지고 로봇 소리가 발생할 수 있습니다.
+   * usedtx=0을 설정하여 침묵 구간에서도 comfort noise 패킷을 전송합니다.
+   *
+   * @example
+   * offer.sdp = this.disableDTX(offer.sdp);
+   */
+  disableDTX(sdp) {
+    // Opus 코덱의 fmtp 라인을 찾아서 usedtx=0 추가
+    // 예: a=fmtp:111 minptime=10;useinbandfec=1
+    // -> a=fmtp:111 minptime=10;useinbandfec=1;usedtx=0;stereo=0;sprop-stereo=0
+    const lines = sdp.split('\r\n');
+    const modifiedLines = lines.map(line => {
+      // Opus fmtp 라인 찾기 (보통 payload type 111)
+      if (line.startsWith('a=fmtp:') && line.includes('minptime')) {
+        // 이미 usedtx가 있으면 0으로 변경, 없으면 추가
+        if (line.includes('usedtx=')) {
+          line = line.replace(/usedtx=\d/, 'usedtx=0');
+        } else {
+          line += ';usedtx=0';
+        }
+        // stereo 설정 추가 (모노로 대역폭 절약)
+        if (!line.includes('stereo=')) {
+          line += ';stereo=0;sprop-stereo=0';
+        }
+        console.log('🔧 DTX disabled in SDP:', line);
+      }
+      return line;
+    });
+    return modifiedLines.join('\r\n');
   }
 }

@@ -32,3 +32,8 @@ Thumbs.db
 
 # Cache
 .cache/
+
+# claude
+CLAUDE.md
+.claude/
+.serena/
