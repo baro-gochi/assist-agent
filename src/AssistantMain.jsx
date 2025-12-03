@@ -63,6 +63,10 @@ function AssistantMain() {
   // 오디오 상태
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
 
+  // Web Audio API (볼륨 증폭용)
+  const audioContextRef = useRef(null);
+  const gainNodeRef = useRef(null);
+
   /**
    * WebRTC 클라이언트 초기화
    */
@@ -108,9 +112,48 @@ function AssistantMain() {
 
     client.onRemoteStream = (stream) => {
       console.log('🎤 Remote audio stream received');
-      if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== stream) {
-        remoteAudioRef.current.srcObject = stream;
-        remoteAudioRef.current.play().catch(err => console.error('Remote audio play failed:', err));
+
+      // Web Audio API를 사용하여 볼륨 증폭
+      try {
+        // 기존 AudioContext 정리
+        if (audioContextRef.current) {
+          audioContextRef.current.close().catch(() => {});
+        }
+
+        // 새 AudioContext 생성
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)({
+          latencyHint: 'interactive',  // 낮은 지연 모드
+          sampleRate: 48000            // 48kHz 샘플레이트
+        });
+        audioContextRef.current = audioContext;
+
+        // 스트림을 AudioContext에 연결
+        const source = audioContext.createMediaStreamSource(stream);
+
+        // GainNode로 볼륨 증폭 (2.5배)
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = 2.5;
+        gainNodeRef.current = gainNode;
+
+        // 연결: source → gain → destination (스피커)
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        console.log('🔊 Audio amplified with gain:', gainNode.gain.value);
+
+        // 숨겨진 audio 요소에도 연결 (폴백용)
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = stream;
+          remoteAudioRef.current.volume = 0; // Web Audio API 사용하므로 0으로
+        }
+      } catch (err) {
+        console.error('❌ Web Audio API failed, using fallback:', err);
+        // 폴백: 일반 audio 요소 사용
+        if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== stream) {
+          remoteAudioRef.current.srcObject = stream;
+          remoteAudioRef.current.volume = 1.0;
+          remoteAudioRef.current.play().catch(e => console.error('Remote audio play failed:', e));
+        }
       }
     };
 
@@ -384,6 +427,12 @@ function AssistantMain() {
    */
   const handleLeaveRoom = () => {
     webrtcClientRef.current.leaveRoom();
+
+    // AudioContext 정리
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
 
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
 
