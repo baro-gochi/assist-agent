@@ -52,6 +52,12 @@ function AssistantMain() {
   const [summaryTimestamp, setSummaryTimestamp] = useState(null); // 요약 수신 시간
   const [llmStatus, setLlmStatus] = useState('connecting'); // 'connecting' | 'ready' | 'connected' | 'failed'
 
+  // RAG API 상태
+  const [ragResponse, setRagResponse] = useState(null); // RAG API 응답
+  const [ragLoading, setRagLoading] = useState(false); // RAG 로딩 상태
+  const [ragError, setRagError] = useState(null); // RAG 에러
+  const ragDebounceRef = useRef(null); // RAG 요청 디바운스
+
   // WebRTC ref
   const webrtcClientRef = useRef(null);
   const remoteAudioRef = useRef(null);
@@ -309,6 +315,78 @@ function AssistantMain() {
     if (!callStartTime || !timestamp) return 0;
     return Math.floor((timestamp - callStartTime) / 1000);
   };
+
+  /**
+   * RAG API 호출 (신입 상담원용)
+   */
+  const fetchRagAssist = async (summary) => {
+    if (!summary || summary.trim().length < 5) return;
+
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    const ragUrl = `${apiBase}/api/rag/assist`;
+
+    console.log('🔍 RAG API Request URL:', ragUrl);
+    console.log('🔍 VITE_API_URL:', import.meta.env.VITE_API_URL);
+
+    setRagLoading(true);
+    setRagError(null);
+
+    try {
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      const authToken = sessionStorage.getItem('auth_token');
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      const response = await fetch(ragUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          summary: summary,
+          include_documents: true,
+          max_documents: 5
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('🤖 RAG API Response:', data);
+      setRagResponse(data);
+    } catch (err) {
+      console.error('❌ RAG API Error:', err);
+      setRagError(err.message);
+    } finally {
+      setRagLoading(false);
+    }
+  };
+
+  /**
+   * 요약 변경 시 RAG API 호출 (디바운스)
+   */
+  useEffect(() => {
+    if (!parsedSummary?.summary || userRole !== 'agent') return;
+
+    // 이전 타이머 취소
+    if (ragDebounceRef.current) {
+      clearTimeout(ragDebounceRef.current);
+    }
+
+    // 1초 디바운스 후 RAG API 호출
+    ragDebounceRef.current = setTimeout(() => {
+      fetchRagAssist(parsedSummary.summary);
+    }, 1000);
+
+    return () => {
+      if (ragDebounceRef.current) {
+        clearTimeout(ragDebounceRef.current);
+      }
+    };
+  }, [parsedSummary?.summary, userRole]);
 
   /**
    * 서버 연결
@@ -702,28 +780,43 @@ function AssistantMain() {
             </div>
           </div>
 
-          {/* Past Consultation History - 상담사만 표시 */}
+          {/* 연관 정보 - 상담사만 표시 (RAG 문서 검색 결과) */}
           {userRole === 'agent' && (
             <div className="card card-flex">
-              <h2 className="card-title">과거 상담 이력 (총 3건)</h2>
-              <div className="history-list">
-                <div className="history-item">
-                  <p className="history-title">2025-11-03: 배송 지연 문의</p>
-                  <p className="history-content">"상품이 아직 도착하지 않았습니다."</p>
-                  <p className="history-agent">담당: 박상담</p>
-                </div>
-                <hr />
-                <div className="history-item">
-                  <p className="history-title">2025-10-20: 결제 오류</p>
-                  <p className="history-content">"카드로하려 하는데 결제가 안돼요."</p>
-                  <p className="history-agent">담당: 김상담</p>
-                </div>
-                <hr />
-                <div className="history-item">
-                  <p className="history-title">2025-09-15: 회원가입 문의</p>
-                  <p className="history-content">"아이디가 기억나지 않습니다."</p>
-                  <p className="history-agent">담당: 김상담</p>
-                </div>
+              <h2 className="card-title">📚 연관 정보</h2>
+              <div className="related-info-list">
+                {ragLoading && (
+                  <div className="rag-loading">
+                    <div className="loading-spinner"></div>
+                    <p>관련 문서 검색 중...</p>
+                  </div>
+                )}
+                {ragError && (
+                  <div className="rag-error">
+                    <p>⚠️ 검색 오류: {ragError}</p>
+                  </div>
+                )}
+                {!ragLoading && !ragError && ragResponse?.documents?.length > 0 ? (
+                  ragResponse.documents.map((doc, index) => (
+                    <div key={index} className="related-info-item">
+                      <div className="doc-header">
+                        <span className="doc-source">📄 {doc.source}</span>
+                        {doc.page && <span className="doc-page">p.{doc.page}</span>}
+                      </div>
+                      <p className="doc-content">{doc.content}</p>
+                    </div>
+                  ))
+                ) : !ragLoading && !ragError && (
+                  <div className="no-related-info">
+                    <p>대화가 시작되면 관련 문서가 자동으로 검색됩니다.</p>
+                  </div>
+                )}
+                {ragResponse?.extracted_keywords && (
+                  <div className="extracted-keywords">
+                    <span className="keywords-label">🔑 추출 키워드:</span>
+                    <span className="keywords-value">{ragResponse.extracted_keywords}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -801,26 +894,57 @@ function AssistantMain() {
         {/* Right Sidebar: AI Assistance - 상담사만 표시 */}
         {userRole === 'agent' && (
           <aside className="sidebar-right">
-            {/* AI Recommendations */}
-            <div className="card ai-recommendation">
-              <h2 className="card-title">AI 추천 답변 (RAG)</h2>
-              <div className="recommendation-list">
-                <div className="recommendation-item">
-                  📌 구현 예정: 대화 내용 기반 실시간 답변 추천 (RAG)
-                </div>
-              </div>
-            </div>
-
-            {/* FAQ / Product Info Tabs */}
-            <div className="card card-flex">
-              <div className="tabs">
-                <button className="tab active">연관 정보</button>
-              </div>
-              <div className="faq-list">
-                <div className="faq-item">
-                  <h3>📌 구현 예정</h3>
-                  <p>대화 맥락 기반 FAQ, 상품 정보, 업무 절차 자동 검색 (RAG)</p>
-                </div>
+            {/* AI 추천 답변 (RAG) */}
+            <div className="card card-flex ai-recommendation">
+              <h2 className="card-title">🤖 AI 추천 답변</h2>
+              <div className="recommendation-content">
+                {ragLoading && (
+                  <div className="rag-loading">
+                    <div className="loading-spinner"></div>
+                    <p>AI가 대응방안을 생성 중...</p>
+                  </div>
+                )}
+                {ragError && (
+                  <div className="rag-error">
+                    <p>⚠️ AI 응답 오류: {ragError}</p>
+                    <button
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => parsedSummary?.summary && fetchRagAssist(parsedSummary.summary)}
+                    >
+                      다시 시도
+                    </button>
+                  </div>
+                )}
+                {!ragLoading && !ragError && ragResponse?.response_guide ? (
+                  <div className="response-guide">
+                    <div className="guide-header">
+                      <span className="guide-label">💡 권장 대응:</span>
+                      {ragResponse.processing_time_ms && (
+                        <span className="processing-time">
+                          {(ragResponse.processing_time_ms / 1000).toFixed(1)}초
+                        </span>
+                      )}
+                    </div>
+                    <div className="guide-content">
+                      {ragResponse.response_guide}
+                    </div>
+                    {ragResponse.target_document && ragResponse.target_document !== '없음' && (
+                      <div className="target-doc">
+                        <span className="target-label">📋 참조 문서:</span>
+                        <span className="target-value">{ragResponse.target_document}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : !ragLoading && !ragError && (
+                  <div className="no-recommendation">
+                    <div className="placeholder-icon">💬</div>
+                    <p>대화 내용을 분석하여</p>
+                    <p>AI가 최적의 대응방안을 추천합니다.</p>
+                    <div className="placeholder-hint">
+                      <small>실시간 요약이 시작되면 자동으로 활성화됩니다.</small>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </aside>
